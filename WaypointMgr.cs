@@ -558,5 +558,44 @@ namespace JSpline
             }
             return markRangeList;
         }
+        
+        public Vector3 GetPosByActualPerc(string pathName, float actualPerc)
+        {
+            var path = GetVec3Path(pathName);
+            float perc = ActualPerc2Perc(pathName, actualPerc);
+            return Tools.GetPointByVec3(perc, path, false);
+        }
+        
+        /// <summary>
+        /// 真实路径转计算百分比--
+        /// </summary>
+        /// <param name="pathName"></param>
+        /// <param name="actualPerc"></param>
+        /// <returns></returns>
+        public float ActualPerc2Perc(string pathName,float actualPerc) {
+            float totalLen = GetPathLength(pathName);
+            List<Transform> pList = GetPath(pathName);
+            if (pList.Count <= 2)
+            {
+                return actualPerc;
+            }
+            float tmLen = 0;
+            int rangeIdx = 1;
+            float actualDeltaPerc = 0;
+            for (rangeIdx = 1; rangeIdx < pList.Count; rangeIdx++)
+            {
+                float d = Vector3.Distance(pList[rangeIdx - 1].position, pList[rangeIdx].position);
+                tmLen += d;
+                if (tmLen / totalLen >= actualPerc)
+                {
+                    actualDeltaPerc = (actualPerc * totalLen - (tmLen - d) ) / d;
+                    break;
+                }
+            }
+            float basePerc = GetWaypointPercByPointIdx(pathName, rangeIdx - 1);
+            float deltaPerc = GetWaypointPercByPointIdx(pathName, rangeIdx) - basePerc;
+            return basePerc + deltaPerc * actualDeltaPerc;
+        }
+        
     }
 }
