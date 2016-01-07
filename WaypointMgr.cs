@@ -597,5 +597,75 @@ namespace JSpline
             return basePerc + deltaPerc * actualDeltaPerc;
         }
         
+        public NormalPath getNormalPath(string splinePathName, int accuracy = 100)
+        {
+            accuracy = 10000;
+            //忽略距离--
+            float ignoreDistance = 10* 0.1f;
+            //检查精度--
+            float checkAccuracy = 1f / accuracy;
+
+            List<Transform> transList = GetPath(splinePathName);
+            List<Vector3> pList = new List<Vector3>();
+            for (int i = 0; i <= accuracy; i++)
+            {
+                float perc = i * checkAccuracy;
+                Vector3 pos = GetPos(splinePathName, perc);
+                if (pList.Count < 2)
+                {
+                    pList.Add(pos);
+                    continue;
+                }
+                Vector3
+                    p1 = pList[pList.Count - 2],
+                    p2 = pList[pList.Count - 1],
+                    p3 = pos;
+                Vector3 v1 = p2 - p1;
+                Vector3 v2 = p3 - p2;
+                //float dotLen = Vector3.Project(v2, v1).magnitude;
+                Vector3 shadowPos = p2 + Vector3.Project(v2, v1);// v1.normalized* dotLen;
+                float d = Vector3.Distance(shadowPos, p3);
+                if (d > ignoreDistance|| i==accuracy)
+                {
+                    pList.Add(p3);
+                }
+            }
+            return new NormalPath(splinePathName, pList);
+        }
+    }
+    
+        public class NormalPath
+    {
+        string name = "";
+        public List<Vector3> pList = new List<Vector3>();
+        public NormalPath(string pathName, List<Vector3> pList)
+        {
+            this.name = pathName;
+            this.pList = pList;
+        }
+
+        public Vector3 GetPosByDistance(float distance)
+        {
+            if (distance <= 0) {
+                return pList[0];
+            }
+            float len = 0;
+            for (int i = 1; i < pList.Count; i++)
+            {
+                float d = Vector3.Distance(pList[i], pList[i - 1]);
+                if (len + d > distance)
+                {
+                    float deltaDistance = distance - len;
+                    return pList[i - 1] + (pList[i] - pList[i - 1]).normalized * deltaDistance;
+                }
+                else {
+                    len += d;
+                }
+            }
+            return pList[pList.Count - 1];
+        }
+
+        //原来曲线的切线方向--
+
     }
 }
