@@ -668,4 +668,7 @@ namespace JSpline
         //原来曲线的切线方向--
 
     }
+    
+    //NewSpline:权重曲线
+    //...
 }
