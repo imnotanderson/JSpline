@@ -35,6 +35,10 @@ namespace JSpline
         }
     }
 
+    public struct Layer
+    {
+        public const int ThreeDRoad = 0;
+    }
     public struct PARAM
     {
         public const char NO_ROTATION = 'r';
@@ -42,7 +46,7 @@ namespace JSpline
         public const char CAMERA_END = 'b';
         public const char SPLIT = '_';
     }
- [ExecuteInEditMode]
+    [ExecuteInEditMode]
     public class WaypointMgr : MonoBehaviour
     {
         const float rad = 0.3f;
@@ -153,8 +157,10 @@ namespace JSpline
                     return wayVec3Dict[pathName];
                 }
             }
-            return new List<Vector3>();
+            return new List<Vector3>(new Vector3[] { Vector3.zero, Vector3.zero, Vector3.zero });
         }
+
+
 
         public List<Transform> GetList(string pathName)
         {
@@ -175,7 +181,7 @@ namespace JSpline
 
         public void AddChild(string pathName, Transform trans)
         {
-            Transform pTrans = transform.FindChild(pathName);
+            Transform pTrans = transform.Find(pathName);
             if (pTrans == null)
             {
                 pTrans = new GameObject(pathName).transform;
@@ -208,8 +214,9 @@ namespace JSpline
         {
             Gizmos.color = Color.red;
             int count = 10;
-            foreach (var list in wayDict.Values)
+            foreach (var k in wayDict)
             {
+                List<Transform> list = k.Value;
                 Vector3? lastPos = null;
                 int pointCount = list.Count * count;
                 for (int i = 0; i < list.Count; i++)
@@ -245,7 +252,7 @@ namespace JSpline
                         lastPos = pos;
                     }
                 }
-            }
+            } 
         }
 
         Color GetMarkColor(Transform trans)
@@ -261,7 +268,7 @@ namespace JSpline
             return Color.red;
         }
 
-       public static bool CheckMark(Transform trans,char c)
+        public static bool CheckMark(Transform trans, char c)
         {
             if (trans.name.IndexOf(c) > 0)
             {
@@ -312,7 +319,9 @@ namespace JSpline
             float p1 = perc - 0.01f;
             p1 = Mathf.Clamp01(p1);
             float p2 = p1 + 0.01f;
-            Vector3 dir = GetPos(pathName, p1) - GetPos(pathName, p2);
+            Vector3 pos1 = GetPos(pathName, p1);
+            Vector3 pos2 = GetPos(pathName, p2);
+            Vector3 dir = pos1 - pos2;
             return dir;
         }
 
@@ -320,7 +329,7 @@ namespace JSpline
         /// 重新计算路径长度--
         /// </summary>
         /// <param name="pathName"></param>
-       public  float CalcPathLength(string pathName)
+        public float CalcPathLength(string pathName)
         {
             if (wayDict.ContainsKey(pathName))
             {
@@ -362,17 +371,7 @@ namespace JSpline
             }
         }
 
-        /// <summary>
-        /// 获得路径长度对应的百分比--
-        /// </summary>
-        /// <param name="pathName"></param>
-        /// <param name="length"></param>
-        /// <returns></returns>
-        public float GetLengthPercent(string pathName, float length)
-        {
-            return length / GetPathLength(pathName);
-        }
-
+    
         public float GetWayProcessByPos(string pathName, Vector3 pos)
         {
             return Tools.GetWayProcessByPos(pathName, pos);
@@ -386,6 +385,28 @@ namespace JSpline
             }
             return wayDict[pathName].Count;
         }
+
+        public Vector3 GetPosByPointIdx(string pathName, int pointIdx)
+        {
+            var list = GetPath(pathName);
+            if (list.Count > pointIdx)
+            {
+                return list[pointIdx].position;
+            }
+            Debug.LogError(string.Format("获得 {0} 路径点坐标 {1} 越界。", pathName, pointIdx));
+            return Vector3.zero;
+        }
+        public Vector3 GetPosByPointIdxLast(string pathName, int pointIdx)
+        {
+            var list = GetPath(pathName);
+            if (list.Count > pointIdx)
+            {
+                return list[list.Count - pointIdx - 1].position;
+            }
+            Debug.LogError(string.Format("倒序获得 {0} 路径点坐标 {1} 越界。", pathName, pointIdx));
+            return Vector3.zero;
+        }
+
 
         /// <summary>
         /// 获得第Idx个样本点的曲线百分比--
@@ -407,119 +428,6 @@ namespace JSpline
         }
 
         /// <summary>
-        /// 倒叙获得第Idx个样本点的曲线百分比--
-        /// </summary>
-        /// <param name="pathName"></param>
-        /// <param name="pointIdx"></param>
-        /// <returns></returns>
-        public float GetWaypointPercByPointIdxLast(string pathName, int pointIdx)
-        {
-            int count = GetWaypointCount(pathName);
-            if (count <= 0)
-            {
-                return 0;
-            }
-            count--;
-            pointIdx = Mathf.Clamp(pointIdx, 0, count);
-            pointIdx = count - pointIdx;
-            float perc = (float)pointIdx / count;
-            return perc;
-        }
-
-        /// <summary>
-        /// 获得第Idx个样本点坐标--
-        /// </summary>
-        /// <param name="pathName"></param>
-        /// <param name="pointIdx"></param>
-        /// <returns></returns>
-        public Vector3 GetPosByPointIdx(string pathName, int pointIdx)
-        {
-            if (wayDict.ContainsKey(pathName) == false)
-            {
-                return Vector3.zero;
-            }
-            if (wayDict[pathName].Count <= pointIdx || pointIdx < 0)
-            {
-                return Vector3.zero;
-            }
-            return wayDict[pathName][pointIdx].position;
-        }
-
-        /// <summary>
-        /// 路径百分比获得路径长度--
-        /// </summary>
-        /// <param name="perc"></param>
-        /// <returns></returns>
-        public float GetPathLengthByPerc(string pathName, float perc)
-        {
-            if(perc>=1)return GetPathLength(pathName);
-            int count = GetWaypointCount(pathName);
-            float leftPerc = 0;
-            float len = 0;
-            Vector3 leftPos = Vector3.zero;
-            Vector3 tmPos;
-            for (int i = 0; i < count; i++)
-            {
-                if (i == 0)
-                {
-                    leftPos = GetPosByPointIdx(pathName, i);
-                    continue;
-                }
-                leftPerc = GetWaypointPercByPointIdx(pathName, i);
-                if (perc >= leftPerc)
-                {
-                    tmPos = GetPosByPointIdx(pathName, i);
-                    len += Vector3.Distance(leftPos, tmPos);
-                    leftPos = tmPos;
-                }
-                else
-                {
-                    leftPerc = GetWaypointPercByPointIdx(pathName, i-1);
-                    tmPos = GetPosByPointIdx(pathName, i);
-                    float rightPerc = GetWaypointPercByPointIdx(pathName, i);
-                    len += Mathf.Abs(Vector3.Distance(leftPos, tmPos) * (perc - leftPerc) / (leftPerc - rightPerc));
-                    break;
-                }
-            }
-            return len;
-        }
-
-        /// <summary>
-        /// 获得两个路径两个百分比之间的距离--
-        /// </summary>
-        /// <param name="pathName"></param>
-        /// <param name="perc1"></param>
-        /// <param name="perc2"></param>
-        /// <returns></returns>
-        public float GetPercDistance(string pathName,float perc1,float perc2)
-        {
-            float len1 = GetPathLengthByPerc(pathName, perc1);
-            float len2 = GetPathLengthByPerc(pathName, perc2);
-            return Mathf.Abs(len2 - len1);
-        }
-
-        /// <summary>
-        /// 倒叙获得第Idx个样本点坐标--
-        /// </summary>
-        /// <param name="pathName"></param>
-        /// <param name="pointIdx"></param>
-        /// <returns></returns>
-        public Vector3 GetPosByPointIdxLast(string pathName, int pointIdx)
-        {
-            if (wayDict.ContainsKey(pathName) == false)
-            {
-                return Vector3.zero;
-            }
-            if (wayDict[pathName].Count <= pointIdx || pointIdx < 0)
-            {
-                return Vector3.zero;
-            }
-            int count = wayDict[pathName].Count;
-            pointIdx = count - pointIdx - 1;
-            return wayDict[pathName][pointIdx].position;
-        }
-
-        /// <summary>
         /// 获得标记范围--
         /// </summary>
         /// <param name="pathName"></param>
@@ -533,7 +441,7 @@ namespace JSpline
             MarkRange? range = null;
             for (int i = 0; i < count; i++)
             {
-                perc = (float)i / (count - 1);
+                perc = GetWaypointPercByPointIdx(pathName, i);// (float)i / (count - 1);
                 if (CheckMarkRange(pathName, perc))
                 {
                     if (range == null)
@@ -558,117 +466,433 @@ namespace JSpline
             }
             return markRangeList;
         }
-        
-        public Vector3 GetPosByActualPerc(string pathName, float actualPerc)
+
+
+        #region New
+
+        public struct Point
         {
-            var path = GetVec3Path(pathName);
-            float perc = ActualPerc2Perc(pathName, actualPerc);
-            return Tools.GetPointByVec3(perc, path, false);
+            public float perc;
+            public float distance;
+            public Vector3 pos;
         }
-        
-        /// <summary>
-        /// 真实路径转计算百分比--
-        /// </summary>
-        /// <param name="pathName"></param>
-        /// <param name="actualPerc"></param>
-        /// <returns></returns>
-        public float ActualPerc2Perc(string pathName,float actualPerc) {
-            float totalLen = GetPathLength(pathName);
-            List<Transform> pList = GetPath(pathName);
-            if (pList.Count <= 2)
+
+        public class Path
+        {
+            public float maxLen;
+            public string name;
+            public List<Point> list = new List<Point>();
+        }
+
+        Dictionary<string,Path>pathDict = new Dictionary<string,Path>();
+
+        void InitPathDict(string pathName)
+        {
+            if (pathDict.ContainsKey(pathName)) return;
+            Path path = new Path();
+            path.name = pathName;
+            int count = 300;
+            float step = 1f / count;
+            float len = 0;
+            Vector3? dir = null;
+            Vector3 prePosForLen = Vector3.zero;
+            for (int i= 0; i<=count; i++)
             {
-                return actualPerc;
-            }
-            float tmLen = 0;
-            int rangeIdx = 1;
-            float actualDeltaPerc = 0;
-            for (rangeIdx = 1; rangeIdx < pList.Count; rangeIdx++)
-            {
-                float d = Vector3.Distance(pList[rangeIdx - 1].position, pList[rangeIdx].position);
-                tmLen += d;
-                if (tmLen / totalLen >= actualPerc)
+                float perc = 0 + step * i;
+                var pos = GetPos(pathName, perc);
+                if (path.list.Count >0)
                 {
-                    actualDeltaPerc = (actualPerc * totalLen - (tmLen - d) ) / d;
+                    len += Vector3.Distance(prePosForLen, pos);
+                    if (path.list.Count > 1)
+                    {
+                        dir = (Vector3)(path.list[path.list.Count - 1].pos - path.list[path.list.Count - 2].pos);
+                    }
+                    else {
+                        dir = null;
+                    }
+                    if (i!=count && dir != null && Check(pos, path.list[path.list.Count - 1].pos, dir.Value) == false)
+                    {
+                        prePosForLen = pos;
+                        continue;
+                    }
+                }
+                prePosForLen = pos;
+                Point point = new Point();
+                point.pos = GetPos(pathName, perc);
+                point.perc = perc;
+                point.distance = len;
+                path.list.Add(point);
+            }
+            path.maxLen = len;
+            pathDict[pathName] = path;
+        }
+
+        public Path GetNewPath(string pathName)
+        {
+            InitPathDict(pathName);
+            return pathDict[pathName];
+        }
+
+        bool Check(Vector3 pos, Vector3 prePos, Vector3 dir)
+        {
+            float ignoreDistance = 0.1f;
+            var v = pos - prePos;
+            var projectVec3 = Vector3.Project(v, dir);
+            float d = v.magnitude * v.magnitude - projectVec3.magnitude * projectVec3.magnitude;
+            ignoreDistance *= ignoreDistance;
+            if (d < ignoreDistance)
+            {
+                return false;
+            }
+            return true;
+        }
+
+        public void ShowSamplePoint(string pathName)
+        {
+            GameObject obj = GameObject.Find("sample");
+            if (obj == null) obj = new GameObject("sample");
+            
+            var path = pathDict[pathName];
+            for (int i = 0; i < path.list.Count; i++)
+            {
+                var p = path.list[i];
+                var s = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                s.name = i.ToString();
+                s.transform.parent = obj.transform;
+                s.transform.localScale = Vector3.one * 0.1f;
+                s.transform.position = p.pos;
+            }
+        }
+
+        public void ClearPathDict()
+        {
+            pathDict.Clear();
+        }
+
+        public float GetPathLen(string pathName)
+        {
+            InitPathDict(pathName);
+            if (pathDict.ContainsKey(pathName))
+            {
+                return pathDict[pathName].maxLen;
+            }
+            return 0;
+        }
+
+        /// <summary>
+        /// 获得长度对应的真实百分比长度--
+        /// </summary>
+        /// <returns></returns>
+        public float GetTruePercByDistance(string pathName, float distance)
+        {
+            return distance / GetNewPath(pathName).maxLen;
+        }
+
+        public Vector3 GetPosByTruePerc(string pathName,float truePerc)
+        {
+            InitPathDict(pathName);
+            var path = pathDict[pathName];
+            if (truePerc <= 0)
+            {
+                return path.list[0].pos;
+            }
+            float trueLen = path.maxLen * truePerc;
+            Point prePoint = new Point();
+            Point nextPoint = new Point();
+            for (int i = 0; i < path.list.Count; i++)
+            {
+                var p = path.list[i];
+                if (trueLen > p.distance)
+                {
+                    prePoint = p;
+                }
+                else
+                {
+                    nextPoint = p;
                     break;
                 }
             }
-            float basePerc = GetWaypointPercByPointIdx(pathName, rangeIdx - 1);
-            float deltaPerc = GetWaypointPercByPointIdx(pathName, rangeIdx) - basePerc;
-            return basePerc + deltaPerc * actualDeltaPerc;
-        }
-        
-        public NormalPath getNormalPath(string splinePathName, int accuracy = 100)
-        {
-            accuracy = 10000;
-            //忽略距离--
-            float ignoreDistance = 10* 0.1f;
-            //检查精度--
-            float checkAccuracy = 1f / accuracy;
-
-            List<Transform> transList = GetPath(splinePathName);
-            List<Vector3> pList = new List<Vector3>();
-            for (int i = 0; i <= accuracy; i++)
+            
+            Vector3 convertPos = (trueLen - prePoint.distance) / (nextPoint.distance - prePoint.distance) * (nextPoint.pos - prePoint.pos) + prePoint.pos;
+            if (float.IsNaN(convertPos.x) || float.IsNaN(convertPos.y) || float.IsNaN(convertPos.z))
             {
-                float perc = i * checkAccuracy;
-                Vector3 pos = GetPos(splinePathName, perc);
-                if (pList.Count < 2)
-                {
-                    pList.Add(pos);
-                    continue;
-                }
-                Vector3
-                    p1 = pList[pList.Count - 2],
-                    p2 = pList[pList.Count - 1],
-                    p3 = pos;
-                Vector3 v1 = p2 - p1;
-                Vector3 v2 = p3 - p2;
-                //float dotLen = Vector3.Project(v2, v1).magnitude;
-                Vector3 shadowPos = p2 + Vector3.Project(v2, v1);// v1.normalized* dotLen;
-                float d = Vector3.Distance(shadowPos, p3);
-                if (d > ignoreDistance|| i==accuracy)
-                {
-                    pList.Add(p3);
-                }
+                Debug.LogWarning("GetPosByTruePerc is NaN.");
+                return Vector3.zero;
             }
-            return new NormalPath(splinePathName, pList);
-        }
-    }
-    
-        public class NormalPath
-    {
-        string name = "";
-        public List<Vector3> pList = new List<Vector3>();
-        public NormalPath(string pathName, List<Vector3> pList)
-        {
-            this.name = pathName;
-            this.pList = pList;
+            return convertPos;
         }
 
-        public Vector3 GetPosByDistance(float distance)
+        public Vector3 GetChuidian(Vector3 linePoint1,Vector3 linePoint2,Vector3 point)
         {
-            if (distance <= 0) {
-                return pList[0];
-            }
-            float len = 0;
-            for (int i = 1; i < pList.Count; i++)
+            var v1 = point - linePoint1;
+            var v2 = linePoint2 - linePoint1;
+
+            var v3 = point - linePoint2;
+            var v4 = linePoint1 - linePoint2;
+
+            bool isIn = Vector3.Dot(v1, v2) >= 0 && Vector3.Dot(v3, v4) >= 0;
+
+            var dir = linePoint2 - linePoint1;
+            var project = Vector3.Project(point-linePoint1, dir);
+            var chuidianPos = project + linePoint1;
+            var pl1 = Tools.Distance(chuidianPos, linePoint1);
+            var pl2 = Tools.Distance(chuidianPos, linePoint2);
+            if (isIn == false)
             {
-                float d = Vector3.Distance(pList[i], pList[i - 1]);
-                if (len + d > distance)
+                if (pl1 < pl2)
                 {
-                    float deltaDistance = distance - len;
-                    return pList[i - 1] + (pList[i] - pList[i - 1]).normalized * deltaDistance;
+                    return linePoint1;
                 }
-                else {
-                    len += d;
+                else
+                {
+                    return linePoint2;
                 }
             }
-            return pList[pList.Count - 1];
+            return chuidianPos;
         }
 
-        //原来曲线的切线方向--
+        //获得垂点，可用--
+        public void DebugPos(string wayName,Vector3 pos, ref Vector3 prePos,ref Vector3 nextPos,ref Vector3 chuidian) {
+            var path = GetNewPath(wayName);
+            var d = double.MaxValue;
+            Point prePoint = new Point(), nextPoint = new Point();
+            Vector3 chuidianPos = Vector3.zero;
+            for (int i = 0; i < path.list.Count - 1; i++)
+            {
+                Point
+                    p1 = path.list[i],
+                    p2 = path.list[i + 1];
+                chuidianPos = GetChuidian(p1.pos, p2.pos, pos);
+                var newDistance = Tools.Distance(chuidianPos, pos);
+                if (newDistance < d)
+                {
+                    prePoint = p1;
+                    nextPoint = p2;
+                    d = newDistance;
+                    chuidian = chuidianPos;
+                    prePos = prePoint.pos;
+                    nextPos = nextPoint.pos;
+                }
+            }
+        }
 
+        /// <summary>
+        /// 归位--
+        /// </summary>
+        /// <param name="wayName"></param>
+        /// <param name="pos"></param>
+        /// <param name="prePos"></param>
+        /// <param name="nextPos"></param>
+        /// <param name="chuidian"></param>
+        public float GetWayTruePrecByPos(string wayName, Vector3 pos)
+        {
+            Vector3 resultCdPos = Vector3.zero;
+            Point resultPrePoint = new Point(), resultNextPoint = new Point();
+            var path = GetNewPath(wayName);
+            var d = double.MaxValue;
+            Point prePoint = new Point(), nextPoint = new Point();
+            Vector3 chuidianPos = Vector3.zero;
+            for (int i = 0; i < path.list.Count - 1; i++)
+            {
+                Point
+                    p1 = path.list[i],
+                    p2 = path.list[i + 1];
+                chuidianPos = GetChuidian(p1.pos, p2.pos, pos);
+                var newDistance = Tools.Distance(chuidianPos, pos);
+                if (newDistance < d)
+                {
+                    prePoint = p1;
+                    nextPoint = p2;
+                    d = newDistance;
+
+                    resultCdPos = chuidianPos;
+                    resultPrePoint = prePoint;
+                    resultNextPoint = nextPoint;
+
+                }
+            }
+
+            float precOffset = Vector3.Distance(resultCdPos, resultPrePoint.pos) / Vector3.Distance(resultNextPoint.pos, resultPrePoint.pos);
+            float perc = (resultPrePoint.distance + (resultNextPoint.distance - resultPrePoint.distance) * precOffset) / path.maxLen;
+            return perc;
+        }
+
+
+        /// <summary>
+        /// 获得切线方向,负方向--
+        /// </summary>
+        /// <returns></returns>
+        public Vector3 GetTangentByTruePerc(string pathName, float truePerc)
+        {
+            return GetTangent(pathName, TruePerc2Perc(pathName, truePerc));
+        }
+
+        public float TruePerc2Perc(string pathName, float truePerc)
+        {
+            var path = GetNewPath(pathName);
+            float trueLen = truePerc * path.maxLen;
+            for (int i = 0; i < path.list.Count - 1; i++)
+            {
+                var prePoint = path.list[i];
+                var nextPoint = path.list[i + 1];
+                if (prePoint.distance <= trueLen && trueLen <= nextPoint.distance)
+                {
+                    float tmPerc = prePoint.perc + (trueLen - prePoint.distance) / (nextPoint.distance - prePoint.distance) * (nextPoint.perc - prePoint.perc);
+                    return tmPerc;// return GetTangent(pathName, tmPerc);
+                }
+            }
+            return 0;// Vector3.zero;
+        }
+
+
+        #endregion
+
+        #region 等分
+
+        //struct Point {
+        //    /// <summary>
+        //    /// 不均百分百--
+        //    /// </summary>
+        //    public float perc;
+        //    /// <summary>
+        //    /// 从0到perc的路径长度--
+        //    /// </summary>
+        //    public float distance;
+        //    public Vector3 pos;
+        //}
+
+        //class Path
+        //{
+        //    public float len = 0;
+        //    public Dictionary<float, Point> pointDict = new Dictionary<float, Point>();
+        //}
+
+        //Dictionary<string, Path> pathDict = new Dictionary<string, Path>();
+
+        //float len = 0;
+        //void InitPointDict(string pathName) {
+        //    if (pathDict.ContainsKey(pathName)) return;
+        //    Path path = new Path();
+        //    float step = 0.001f;
+        //    Vector3 lastPos = Vector3.zero;
+        //    float lenMax = 0;
+        //    for (float perc = 0; perc <= 1; perc += step)
+        //    {
+        //        Point p = new Point();
+        //        p.perc = perc;
+        //        p.pos = WaypointMgr.instance.GetPos(pathName, perc);
+        //        p.distance = Vector3.Distance(p.pos, lastPos)+len;
+        //        lastPos = p.pos;
+        //        if (p.perc <= 0) continue;
+        //        len = p.distance;
+        //        lenMax = len;
+        //        path.pointDict[perc] = p;
+        //    }
+        //    path.len = lenMax;
+        //    pathDict[pathName] = path;
+        //}
+
+        //public Vector3 GetPosByTruePerc(string pathName, float perc)
+        //{
+        //    InitPointDict(pathName);
+        //    Path p = pathDict[pathName];
+        //    var tmLen = p.len * perc;
+        //    Point prePoint = new Point(), nextPoint =new Point();
+        //    p.pointDict.Loop((point) =>
+        //    {
+        //        if (point.Value.distance > tmLen)
+        //        {
+        //            prePoint = point.Value;
+        //            return true;
+        //        }
+        //        nextPoint = point.Value;
+        //        return false;
+        //    });
+        //    float tmPerc = (tmLen - prePoint.distance) / (nextPoint.distance - prePoint.distance) * (nextPoint.perc - prePoint.perc) + prePoint.perc;
+        //    return WaypointMgr.instance.GetPos(pathName, tmPerc);
+        //}
+
+        #endregion
+
+        #region 权重
+        //Dictionary<string, List<float>> pathWeightDict = new Dictionary<string, List<float>>();
+
+        //public void InitWeightData(string pathName)
+        //{
+        //    if (pathWeightDict.ContainsKey(pathName)) return;
+        //    List<Transform> trans = GetPath(pathName);
+        //    List<float> weightList = new List<float>();
+        //    float precA = 0, precB = 0;
+        //    for (int i = 1; i < trans.Count; i++)
+        //    {
+        //        precB = GetWaypointPercByPointIdx(pathName, i);
+        //        weightList.Add(getWeight(pathName, precA, precB));
+        //        precA = precB;
+        //    }
+        //    pathWeightDict[pathName] = weightList;
+        //}
+
+        //public float getWeight(string pathName, float precA, float precB)
+        //{
+        //    int count = 1;
+        //    float step = (precB - precA) / count;
+        //    Vector3 pos = GetPos(pathName, precA);
+        //    float distance = 0;
+        //    for (float prec = precA; prec <= precB; prec += step)
+        //    {
+        //        Vector3 tmPos = GetPos(pathName, prec);
+        //        distance += Vector3.Distance(pos, tmPos);
+        //        pos = tmPos;
+        //    }
+        //    return distance;
+        //}
+
+        //float getPathPercByTruePerc(string pathName, float truePerc)
+        //{
+        //    truePerc = Mathf.Clamp01(truePerc);
+        //    //总长度--
+        //    float len = 0;
+        //    pathWeightDict[pathName].Loop((f) =>
+        //    {
+        //        len += f;
+        //    });
+
+        //    float trueLen = truePerc * len;
+        //    len = 0;
+        //    float nextLen = 0;
+        //    int preIdx = 0;
+        //    float preLen = 0;
+        //    pathWeightDict[pathName].Loop((f) =>
+        //    {
+        //        if (f + len >= trueLen)
+        //        {
+        //            nextLen = f;
+        //            return true;
+        //        }
+        //        len += f;
+        //        preLen += f;
+        //        preIdx++;
+        //        return false;
+        //    });
+        //    float prePerc = WaypointMgr.instance.GetWaypointPercByPointIdx(pathName, preIdx);
+        //    float nextPerc = WaypointMgr.instance.GetWaypointPercByPointIdx(pathName, preIdx+1);
+        //    float perc = prePerc + (nextPerc - prePerc) * (trueLen - preLen) / nextLen;
+        //    return perc;
+        //}
+
+        //public Vector3 GetPosByTruePrec(string pathName, float truePerc)
+        //{
+        //    WaypointMgr.instance.InitWeightData(pathName);
+        //    float perc = getPathPercByTruePerc(pathName, truePerc);
+        //    return GetPos(pathName, perc);
+        //}
+
+        //public static void Test(float truePerc) {
+        //    string pathName = "way";
+        //    WaypointMgr.instance.InitWeightData(pathName);
+        //    GameObject obj = GameObject.Find("debug");
+        //    obj.transform.position = WaypointMgr.instance.GetPosByTruePrec(pathName, truePerc);
+        //}
+        #endregion
     }
-    
-    //NewSpline:权重曲线
-    //...
 }

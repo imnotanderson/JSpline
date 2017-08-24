@@ -50,6 +50,8 @@ namespace JSpline
             );
         }
 
+
+
         public static Vector3 GetPointByTrans(float perc, List<Transform> tList, bool isClosed)
         {
             List<Vector3> vList = new List<Vector3>();
@@ -69,27 +71,28 @@ namespace JSpline
         {
             float len = WaypointMgr.instance.GetPathLength(pathName);
 
-            List<Transform> tList = WaypointMgr.instance.GetPath(pathName);
-            Transform tmTrans = null;
+//            List<Transform> tList = WaypointMgr.instance.GetPath(pathName);
+            var tList = WaypointMgr.instance.GetNewPath(pathName);// GetPath(pathName);
+            Vector3? tmPos = null;
             float min = 0, max = 0;
             float d = float.MaxValue;
-            for (int i = 0; i < tList.Count; i++)
+            for (int i = 0; i < tList.list.Count; i++)
             {
-                Transform t = tList[i];
-                if (tmTrans == null)
+                var t = tList.list[i];
+                if (tmPos == null)
                 {
-                    tmTrans = t;
+                    tmPos = t.pos;
                 }
                 else
                 {
-                    var tmD = Vector3.Distance(GetChuidian(tmTrans.position, t.position, pos), pos);
+                    var tmD = Vector3.Distance(GetChuidian(tmPos.Value, t.pos, pos), pos);
                     if (d > tmD)
                     {
                         d = tmD;
                         min = JSpline.WaypointMgr.instance.GetWaypointPercByPointIdx(pathName, i - 1);
                         max = JSpline.WaypointMgr.instance.GetWaypointPercByPointIdx(pathName, i);
                     }
-                    tmTrans = t;
+                    tmPos = t.pos;
                 }
             }
 
@@ -97,13 +100,14 @@ namespace JSpline
             return CheckWayProcess(pathName, pos, process);
         }
 
+
         static float GetWayProcessByPos(string pathName, Vector3 pos, float min, float max, float len)
         {
             //精度--
             float precision = 0.03f;
             Vector3 currPos = pos;
-            Vector3 minPos = WaypointMgr.instance.GetPos(pathName, min);
-            Vector3 maxPos = WaypointMgr.instance.GetPos(pathName, max);
+            Vector3 minPos = WaypointMgr.instance.GetPosByTruePerc(pathName, min);
+            Vector3 maxPos = WaypointMgr.instance.GetPosByTruePerc(pathName, max);
 
             if (Vector3.Distance(minPos, pos) < precision)
             {
@@ -159,6 +163,16 @@ namespace JSpline
             }
         }
 
+        public static double Distance(Vector3 v1, Vector3 v2)
+        {
+            var v = v1 - v2;
+            double
+                x = v.x,
+                y = v.y,
+                z = v.z;
+            return System.Math.Sqrt( x * x + y * y + z * z);
+        }
+
         static float CheckWayProcess(string pathName, Vector3 pos, float baseProcess)
         {
             int count = 100;
@@ -169,7 +183,7 @@ namespace JSpline
             for (int i = 0; i < count; i++)
             {
                 float tmProcess = baseProcess - offset + step * i;
-                Vector3 v = WaypointMgr.instance.GetPos(pathName, tmProcess);
+                Vector3 v = WaypointMgr.instance.GetPosByTruePerc(pathName, tmProcess);
                 float tmD = Vector3.Distance(pos, v);
                 if (tmD < d)
                 {
@@ -179,7 +193,6 @@ namespace JSpline
             }
             return UnityEngine.Mathf.Clamp01(finalProcess);
         }
-
 
     }
 }

@@ -18,8 +18,8 @@ namespace JSpline
                 {
                     Ray worldRay = HandleUtility.GUIPointToWorldRay(Event.current.mousePosition);
                     RaycastHit hit;
-
-                    if (Physics.Raycast(worldRay, out hit, int.MaxValue))
+                    int mask = 1 << (int)Layer.ThreeDRoad;
+                    if (Physics.Raycast(worldRay, out hit, int.MaxValue, mask))
                     {
                         Event.current.Use();
                         AddPoint(hit.point);
@@ -36,7 +36,10 @@ namespace JSpline
                 if (GUILayout.Button("StartPath"))
                 {
                     startPath = true;
-                    SceneView.currentDrawingSceneView.Focus();
+                    SceneView view = SceneView.currentDrawingSceneView;
+                    if (view == null)
+                        view = EditorWindow.GetWindow<SceneView>();
+                    view.Focus();
                 }
             }
             else
